@@ -1,4 +1,4 @@
-import { Actor, Circle, Text, CollisionType, Color, GraphicsGroup, Rectangle, vec, Vector, Font, FontStyle, TextAlign } from "excalibur";
+import { Actor, Circle, Text, CollisionType, Color, GraphicsGroup, Rectangle, vec, Vector, Font, TextAlign } from "excalibur";
 import { Config } from "./config";
 
 const ballColors = [
@@ -43,6 +43,7 @@ export class Ball extends Actor {
         new GraphicsGroup({
           members: [
             {
+              // white
               offset: vec(-.5, -.5),
               graphic: new Circle({
                 color: Color.White,
@@ -52,6 +53,7 @@ export class Ball extends Actor {
               })
             },
             {
+              // stripe 1
               offset: vec(4, 10),
               graphic: new Rectangle({
                 color: ballColors[number - 1],
@@ -60,6 +62,16 @@ export class Ball extends Actor {
               })
             },
             {
+              // stripe 2
+              offset: vec(2, 15),
+              graphic: new Rectangle({
+                color: ballColors[number - 1],
+                width: Config.BallRadius * 2 + 2,
+                height: 10
+              })
+            },
+            {
+              // number circle
               offset: vec(Config.BallRadius - Config.BallRadius / 2 - 2, Config.BallRadius - Config.BallRadius / 2 - 2),
               graphic: new Circle({
                 color: Color.White,
@@ -69,6 +81,7 @@ export class Ball extends Actor {
               })
             },
             {
+              // number text
               useBounds: false,
               offset: vec(Config.BallRadius + 2, Config.BallRadius - 4.5),
               graphic: new Text({
