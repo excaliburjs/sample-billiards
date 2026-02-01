@@ -3,6 +3,7 @@ import { Config } from "./config";
 
 const ballColors = [
   // solid
+  "#FCD116",
   "#003DA5",
   "#CE1126",
   "#660099",
@@ -37,7 +38,7 @@ export class Ball extends Actor {
       textAlign: TextAlign.Center
     });
 
-    if (number > 6) { // striped
+    if (number > 8) { // striped
       this.graphics.use(
         new GraphicsGroup({
           members: [
@@ -59,12 +60,12 @@ export class Ball extends Actor {
               })
             },
             {
-              offset: vec(Config.BallRadius - Config.BallRadius / 2, Config.BallRadius - Config.BallRadius / 2),
+              offset: vec(Config.BallRadius - Config.BallRadius / 2 - 2, Config.BallRadius - Config.BallRadius / 2 - 2),
               graphic: new Circle({
                 color: Color.White,
                 strokeColor: ballColors[number - 1],
                 lineWidth: 2,
-                radius: Config.BallRadius / 2
+                radius: Config.BallRadius / 2 + 2
               })
             },
             {

@@ -74,7 +74,7 @@ export class MyLevel extends Scene {
     bumperBottom.body.bounciness = bounciness;
     this.add(bumperBottom);
 
-    for (let ballNumber = 1; ballNumber < 15; ballNumber++) {
+    for (let ballNumber = 1; ballNumber <= 15; ballNumber++) {
       const ball = new Ball(
         vec(
           this.random.floating(150, 250),
