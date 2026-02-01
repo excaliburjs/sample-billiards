@@ -74,39 +74,26 @@ export class MyLevel extends Scene {
     bumperBottom.body.bounciness = bounciness;
     this.add(bumperBottom);
 
-    
-    let ballNumber = 1;
+    let ballNumber = 15;
     let ballDiameter = Config.BallRadius * 2;
-    for (let x = 1; x <= 5; x++) {
-      for (let y = x - 1; y >= 0; y--) {
+    // centered on the table 
+    let rackOrigin = tableOrigin.add(vec(tableWidth/2, 300));
+    for (let y = 5; y > 0; y--) {
+      for (let x = y - 1; x >= 0; x--) {
         const ball = new Ball(
-          tableOrigin.add(vec(tableWidth/2 - (ballDiameter * 5) /2 - Config.BallRadius, 100)).add(vec(x * ballDiameter - y * Config.BallRadius, y * ballDiameter)),
-          ballNumber++
+          rackOrigin.add(vec(x * ballDiameter - y * Config.BallRadius, -y * ballDiameter)),
+          ballNumber--
         );
         this.add(ball);
-
       }
     }
-
-
-    // for (let ballNumber = 1; ballNumber <= 15; ballNumber++) {
-    //   const ball = new Ball(
-    //     vec(
-    //       this.random.floating(150, 250),
-    //       this.random.floating(150, 250)),
-    //     ballNumber
-    //   );
-    //   this.add(ball);
-    // }
 
     const cueBall = new Actor({
       radius: ballRadius,
       color: Color.White,
       collisionType: CollisionType.Active
     });
-
     cueBall.body.bounciness = bounciness;
-
 
     this.input.pointers.on('down', (evt) => {
       this.add(cueBall);
