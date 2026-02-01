@@ -37,12 +37,12 @@ export class Ball extends Actor {
       textAlign: TextAlign.Center
     });
 
-    if (number > 6) {
+    if (number > 6) { // striped
       this.graphics.use(
         new GraphicsGroup({
           members: [
             {
-              offset: vec(0, 0),
+              offset: vec(-.5, -.5),
               graphic: new Circle({
                 color: Color.White,
                 strokeColor: ballColors[number - 1],
@@ -51,11 +51,11 @@ export class Ball extends Actor {
               })
             },
             {
-              offset: vec(2.5, Config.BallRadius),
+              offset: vec(4, 10),
               graphic: new Rectangle({
                 color: ballColors[number - 1],
-                width: Config.BallRadius * 2,
-                height: Config.BallRadius - Config.BallRadius / 4
+                width: Config.BallRadius * 2 - 2,
+                height: 20
               })
             },
             {
