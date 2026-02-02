@@ -1,8 +1,9 @@
-import { ImageSource, Loader } from "excalibur";
+import { ImageSource, ImageWrapping, Loader } from "excalibur";
 
 // It is convenient to put your resources in one place
 export const Resources = {
-  Sword: new ImageSource("./images/sword.png") // Vite public/ directory serves the root images
+  Sword: new ImageSource("./images/sword.png"), // Vite public/ directory serves the root images
+  Table: new ImageSource("./images/table.jpg", { wrapping: ImageWrapping.Repeat })
 } as const; // the 'as const' is a neat typescript trick to get strong typing on your resources. 
 // So when you type Resources.Sword -> ImageSource
 

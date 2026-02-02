@@ -1,10 +1,14 @@
 import { Actor, CollisionType, Color, DefaultLoader, Engine, ExcaliburGraphicsContext, Random, Scene, SceneActivationContext, vec } from "excalibur";
 import { Ball } from "./ball";
 import { Config } from "./config";
+import { Resources } from "./resources";
 
 export class MyLevel extends Scene {
   random = new Random(1337);
   override onInitialize(engine: Engine): void {
+    this.camera.pos.y += 300;
+    this.camera.zoom = .5
+    this.backgroundColor = Color.DarkGray;
     // https://www.dimensions.com/element/billiard-balls
     // american ball 2.25 in diameter
     //
@@ -15,7 +19,6 @@ export class MyLevel extends Scene {
     const tableOrigin = vec(100, 0);
     const tableWidth = Config.TableWidth
     const tableHeight = Config.TableHeight;
-    const ballRadius = Config.BallRadius;
     const bumperThickness = Config.BumperThickness;
     const bounciness = .9;
 
@@ -27,6 +30,10 @@ export class MyLevel extends Scene {
       color: Color.fromHex("#276b40"),
       collisionType: CollisionType.PreventCollision
     });
+    const tableSprite = Resources.Table.toSprite();
+    tableSprite.destSize.width = tableWidth;
+    tableSprite.destSize.height = tableHeight;
+    background.graphics.use(tableSprite);
     this.add(background);
 
     const bumperLeft = new Actor({
@@ -34,7 +41,7 @@ export class MyLevel extends Scene {
       anchor: vec(0.5, 0),
       width: bumperThickness,
       height: tableHeight,
-      color: Color.Black,
+      color: Color.Brown.darken(.4),
       collisionType: CollisionType.Fixed
     });
     bumperLeft.body.bounciness = bounciness;
@@ -45,7 +52,7 @@ export class MyLevel extends Scene {
       anchor: vec(.5, 0),
       width: bumperThickness,
       height: tableHeight,
-      color: Color.Black,
+      color: Color.Brown.darken(.4),
       collisionType: CollisionType.Fixed
     });
     bumperRight.body.bounciness = bounciness;
@@ -56,7 +63,7 @@ export class MyLevel extends Scene {
       anchor: vec(0, .5),
       width: tableWidth,
       height: bumperThickness,
-      color: Color.Black,
+      color: Color.Brown.darken(.4),
       collisionType: CollisionType.Fixed
     });
     bumperTop.body.bounciness = bounciness;
@@ -68,7 +75,7 @@ export class MyLevel extends Scene {
       anchor: vec(0, .5),
       width: tableWidth,
       height: bumperThickness,
-      color: Color.Black,
+      color: Color.Brown.darken(.4),
       collisionType: CollisionType.Fixed,
     });
     bumperBottom.body.bounciness = bounciness;
@@ -94,8 +101,7 @@ export class MyLevel extends Scene {
     this.input.pointers.on('down', (evt) => {
       this.add(cueBall);
       cueBall.pos = evt.worldPos;
-      cueBall.vel = vec(0, -800);
-      // cueBall.angularVelocity = 2 * Math.PI;
+      cueBall.vel = vec(0, -1800);
     });
   }
 
