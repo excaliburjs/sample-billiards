@@ -102,68 +102,99 @@ export class Ball extends Actor {
             );
         }
 
+
+        mat2 rotate2d(float angle) {
+            float s = sin(angle);
+            float c = cos(angle);
+            return mat2(
+                c, -s,
+                s, c
+            );
+        }
+
+
+
         vec2 sphereUV(vec2 uv, float radius, float rotation) {
             // Center the coordinates
-            // vec2 p = uv - 0.5;
-            vec2 p = uv * 2.0 - 1.0;
+            vec2 p = uv - 0.5;
+            
             // Calculate distance from center
             float dist = length(p);
+            
             // Only warp inside the sphere
             if (dist < radius) {
                 float z = sqrt(radius * radius - dist * dist);
                 vec3 spherePos = rotateZ(rotation) * vec3(p.x, p.y, z);
+                
                 // Normalize to get the normal
                 vec3 normal = normalize(spherePos);
+                
                 // Convert to spherical coordinates for UV mapping
-                // You can use these normals directly or convert to lat/long
                 vec2 sphereUV;
-                sphereUV.x = atan(normal.x, normal.z) / 3.14159 + .5;
-                sphereUV.y = asin(normal.y) / 3.14159 + .5;
+                sphereUV.x = atan(normal.x, normal.z) / (2.0 * PI) + 0.5;
+                sphereUV.y = asin(normal.y) / PI + 0.5;
+                
                 return sphereUV;
             }
+            
+            // Outside the sphere - return original UV (will be discarded by alpha)
             return uv;
         }
 
         void main(){
           float fade = fwidth(dot(v_uv, v_uv));
+          // Calculate distance from center for sphere masking
+          vec2 centered = v_uv - 0.5;
+          float sphereDist = length(centered);
+          float sphereRadius = 0.25;
 
-          vec2 uv = v_uv;
-          uv = sphereUV(uv, .505, -rotation);
-          // uv = rotateZ(-rotation) * uv;
+          // Apply spherical mapping
+          vec2 uv = sphereUV(v_uv, sphereRadius, rotation);
 
-          vec2 scroll;
-          vec2 rotatedRoll = roll;
-          scroll.x = uv.x - rotatedRoll.x;
-          scroll.y = uv.y - rotatedRoll.y;
+          // Apply roll after sphere mapping
+          uv.x -= roll.x;
+          uv.y -= roll.y;
 
-          uv.x = mod(scroll.x, 1.);
-          uv.y = mod(scroll.y, 1.);
+          uv = mod(uv, 1.);
 
-          float dist = 1.0 - length(uv * 2.0 - 1.0);
-          float adist = 1.0 - length(v_uv * 2.0 - 1.0);
+          // Un warp the uv
+          vec2 scaledUv = uv;
+          scaledUv.x *= 2.;
+          scaledUv.x -= .5;
+          float dist = 1.0 - length(scaledUv - .5);
 
+          float adist = 1.0 - sphereDist * 2.0; // Use sphere distance for outer edge
 
           fragColor = color;
 
           // "Stripe" pattern for number 9 to 15
-          float stripeStart = 0.15 * 1.5;
-          float stripeEnd = 0.85 * 1.5;
+          float stripeStart = 0.15;
+          float stripeEnd = 0.85;
+
           if (number > 8.) {
             fragColor.rgb = mix(vec3(1.), fragColor.rgb, smoothstep(stripeStart - fade / 2., stripeStart + fade / 2., uv.y));
-            fragColor.rgb = mix(fragColor.rgb, vec3(1.), smoothstep(stripeEnd - fade / 2., stripeEnd + fade / 2., uv.y));
+            fragColor.rgb = mix(fragColor.rgb, vec3(1.), smoothstep(stripeEnd   - fade / 2., stripeEnd   + fade / 2., uv.y));
           }
 
           // Circle for Text
-          float circleEnd = .45 * 1.5;
+          float circleEnd = .76;
           fragColor.rgb = mix(fragColor.rgb, vec3(1.), smoothstep(circleEnd - fade / 2., circleEnd + fade / 2., dist));
 
           // Text
-          vec4 textcolor = texture(text, uv * 2.0 - .5);
+          vec4 textcolor = texture(text, scaledUv);
           fragColor.rgb = mix(fragColor.rgb, textcolor.rgb, textcolor.a);
 
-          // Outer edge
-          float outerEdge = .50;
-          fragColor.a = smoothstep(outerEdge-fade, outerEdge+fade, adist);
+          // Outer edge - use sphere boundary
+          fragColor.a = smoothstep(sphereRadius, sphereRadius - fade /2., sphereDist);
+
+          // lighting
+          if (sphereDist < sphereRadius) {
+              float z = sqrt(sphereRadius * sphereRadius - sphereDist * sphereDist);
+              vec3 normal = normalize(vec3(centered.x, centered.y, z));
+              vec3 lightDir = normalize(vec3(0.5, 0.5, 1.0));
+              float lighting = max(dot(normal, lightDir), 0.5); // 0.3 = ambient light
+              fragColor.rgb *= lighting;
+          }
 
           // premult alpha
           fragColor.rgb *= fragColor.a;
@@ -186,8 +217,16 @@ export class Ball extends Actor {
 
   _rolling: Vector = vec(0, 0);
   onPreUpdate(engine: Engine, elapsed: number): void {
-    this._rolling = this.pos.sub(this.originalPos).scale(1 / (2 * Config.BallRadius));
+    this._rolling = this.pos.sub(this.originalPos).scale(1 / (2 * Config.BallRadius * Math.PI));
     this.billardsMat.uniforms.rotation = this.rotation;
     this.billardsMat.uniforms.roll = this._rolling;
+
+    // friction
+    if (this.vel.squareDistance() > .01) {
+      this.vel = this.vel.add(this.vel.negate().scale(.01));
+    }
+    if (Math.abs(this.angularVelocity) > .01) {
+      this.angularVelocity = this.angularVelocity - this.angularVelocity * .01;
+    }
   }
 }
