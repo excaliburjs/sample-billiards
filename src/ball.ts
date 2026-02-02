@@ -37,34 +37,49 @@ export class Ball extends Actor {
       collisionType: CollisionType.Active
     });
     this.body.bounciness = Config.Bounciness;
-    // this.body.limitDegreeOfFreedom.push(DegreeOfFreedom.Rotation);
     this.graphics.color = ballColors[number];
-    this.graphics.use(new Rectangle({
-      width: Config.BallRadius * 4,
-      height: Config.BallRadius * 4,
-      color: ballColors[number]
-    }));
 
     this.originalPos = pos.clone();
 
     const font = new Font({
       family: 'sans-serif',
-      size: 12,
+      size: 32,
       bold: true,
       textAlign: TextAlign.Center,
       baseAlign: BaseAlign.Middle
     });
 
     const canvas = new Canvas({
-      width: Config.BallRadius * 2,
-      height: Config.BallRadius * 2,
+      width: 2 * Math.PI * Config.BallRadius,
+      height: 2 * Math.PI * Config.BallRadius,
       draw: (ctx) => {
+
+        if (this.number > 8) {
+          ctx.save();
+          ctx.fillStyle = 'white';
+          ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height / 3 - 5);
+          ctx.restore();
+
+          ctx.save();
+          ctx.fillStyle = 'white';
+           ctx.fillRect(0, 2 * ctx.canvas.height / 3 + 5, ctx.canvas.width, ctx.canvas.height / 3);
+          ctx.restore();
+        }
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.fillStyle = 'white';
+        ctx.arc(Config.BallRadius * Math.PI, Config.BallRadius * Math.PI, Config.BallRadius, 0, 2 * Math.PI);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
         ctx.save();
         ctx.textAlign = font.textAlign;
         ctx.textBaseline = font.baseAlign;
         ctx.font = font.fontString;
         ctx.fillStyle = 'black';
-        ctx.fillText(this.number.toString(), Config.BallRadius, Config.BallRadius + 1);
+        ctx.fillText(this.number.toString(), Config.BallRadius * Math.PI, Config.BallRadius * Math.PI + 1);
         ctx.restore();
       }
     });
@@ -74,6 +89,7 @@ export class Ball extends Actor {
 
   onInitialize(engine: Engine): void {
     const glsl = (x: any) => x[0]; // this is just for syntax highlighting
+    this.oldPos = this.originalPos;
 
     this.billardsMat = this.graphics.material = engine.graphicsContext.createMaterial({
       name: 'billiards',
@@ -83,134 +99,88 @@ export class Ball extends Actor {
         #define PI 3.141592653
         precision mediump float;
 
-        uniform vec2 originalPos;
-        uniform vec2 currentPos;
+        uniform vec2 accumulatedRotation;
+        uniform float ballRadius;
         uniform vec4 color;
         uniform float number;
-        uniform sampler2D u_graphic;
         uniform sampler2D text;
-        uniform vec2 roll;
-        uniform float u_time_ms;
         uniform float rotation;
 
         in vec2 v_uv;
 
         out vec4 fragColor;
 
-        mat3 rotateZ(float angle) {
-            float s = sin(angle);
-            float c = cos(angle);
-            return mat3(
-                c, -s, 0.,
-                s, c,  0.,
-                0., 0., 1.
-            );
+
+        // Convert 2D circle UV to 3D sphere normal
+        vec3 uvToSphereNormal(vec2 uv) {
+            // Convert UV to -1 to 1 range centered at origin
+            vec2 pos = (uv - 0.5) * 2.0;
+
+            // Calculate z depth for sphere
+            float r2 = dot(pos, pos);
+            if (r2 > 1.0) discard; // Outside the circle
+
+            float z = sqrt(1.0 - r2);
+            return normalize(vec3(pos.x, pos.y, z));
         }
 
-        mat2 rotate2d(float angle) {
+        // Rotate a point around an axis
+        vec3 rotateAroundAxis(vec3 p, vec3 axis, float angle) {
+            axis = normalize(axis);
             float s = sin(angle);
             float c = cos(angle);
-            return mat2(
-                c, -s,
-                s, c
+            float oc = 1.0 - c;
+
+            mat3 rot = mat3(
+                oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,
+                oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,
+                oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c
             );
-        }
 
-        vec2 sphereUV(vec2 uv, float radius, float rotation) {
-            // Center the coordinates
-            vec2 p = uv - 0.5;
-
-            // Calculate distance from center
-            float dist = length(p);
-            
-            // Only warp inside the sphere
-            if (dist < radius) {
-                float z = sqrt(radius * radius - dist * dist);
-                vec3 spherePos = rotateZ(rotation) * vec3(p.x, p.y, z);
-                
-                // Normalize to get the normal
-                vec3 normal = normalize(spherePos);
-                
-                // Convert to spherical coordinates for UV mapping
-                vec2 sphereUV;
-                sphereUV.x = atan(normal.x, normal.z) / (2.0 * PI) + 0.5;
-                sphereUV.y = asin(normal.y) / PI + 0.5;
-                
-                return sphereUV;
-            }
-            
-            // Outside the sphere - return original UV (will be discarded by alpha)
-            return uv;
+            return rot * p;
         }
 
         void main(){
+          vec3 worldNormal = uvToSphereNormal(v_uv);
+          worldNormal = rotateAroundAxis(worldNormal, vec3(0.0, 0.0, 1.0), -rotation);
+
+          vec3 lightDir = normalize(vec3(0.5, 0.5, 1.0));
+          float lighting = max(dot(worldNormal, lightDir), 0.3);
+
           float fade = fwidth(dot(v_uv, v_uv));
-          // Calculate distance from center for sphere masking
-          vec2 centered = v_uv - 0.5;
-          float sphereDist = length(centered);
-          float sphereRadius = 0.25;
 
-          // Apply spherical mapping
-          vec2 uv = sphereUV(v_uv, sphereRadius, rotation);
+          vec3 textureNormal = uvToSphereNormal(v_uv);
 
-          // Apply roll after sphere mapping
-          uv.x -= roll.x;
-          uv.y -= roll.y;
+          // Apply accumulated rolling rotations
+          textureNormal = rotateAroundAxis(textureNormal, vec3(0.0, 1.0, 0.0), -accumulatedRotation.y);
+          textureNormal = rotateAroundAxis(textureNormal, vec3(1.0, 0.0, 0.0), accumulatedRotation.x);
+          textureNormal = rotateAroundAxis(textureNormal, vec3(0.0, 0.0, 1.0), rotation);
 
-          uv = mod(uv, 1.);
-
-          // Un warp the uv
-          vec2 scaledUv = uv;
-          scaledUv.x *= 2.;
-          scaledUv.x -= .5;
-          float dist = 1.0 - length(scaledUv - .5);
-
-          float adist = 1.0 - sphereDist * 2.0; // Use sphere distance for outer edge
+          // Convert sphere normal to texture UV coordinates
+          // Using spherical mapping
+          vec2 texUV;
+          texUV.x = 0.5 + atan(textureNormal.x, textureNormal.z) / (1.0 * PI);
+          texUV.y = 0.5 + asin(textureNormal.y) / PI;
 
           fragColor = color;
 
-          // "Stripe" pattern for number 9 to 15
-          float stripeStart = 0.15;
-          float stripeEnd = 0.85;
-
-          if (number > 8.) {
-            fragColor.rgb = mix(vec3(1.), fragColor.rgb, smoothstep(stripeStart - fade / 2., stripeStart + fade / 2., uv.y));
-            fragColor.rgb = mix(fragColor.rgb, vec3(1.), smoothstep(stripeEnd   - fade / 2., stripeEnd   + fade / 2., uv.y));
-          }
-
+          // Sample the texture
           if (number > 0.) {
-            // Circle for Text
-            float circleEnd = .76;
-            fragColor.rgb = mix(fragColor.rgb, vec3(1.), smoothstep(circleEnd - fade / 2., circleEnd + fade / 2., dist));
-
-            // Text
-            vec4 textcolor = texture(text, scaledUv);
+            vec4 textcolor = texture(text, texUV);
             fragColor.rgb = mix(fragColor.rgb, textcolor.rgb, textcolor.a);
           }
+          fragColor.rgb *= lighting;
 
-          // Outer edge - use sphere boundary
-          fragColor.a = smoothstep(sphereRadius, sphereRadius - fade /2., sphereDist);
-
-          // lighting
-          if (sphereDist < sphereRadius) {
-              float z = sqrt(sphereRadius * sphereRadius - sphereDist * sphereDist);
-              vec3 normal = normalize(vec3(centered.x, centered.y, z));
-              vec3 lightDir = normalize(vec3(0.5, 0.5, 1.0));
-              float lighting = max(dot(normal, lightDir), 0.5); // 0.3 = ambient light
-              fragColor.rgb *= lighting;
-          }
-
-          // premult alpha
+          // premult
           fragColor.rgb *= fragColor.a;
         }
       `,
       uniforms: {
+        ballRadius: Config.BallRadius,
+        accumulatedRotation: this._accum,
         color: this.graphics.color!,
         number: this.number,
-        roll: vec(0, 0),
-        rotation: this.rotation,
-        currentPos: this.pos,
-        originalPos: this.originalPos
+        rotation: this.rotation
       }
     });
 
@@ -223,13 +193,21 @@ export class Ball extends Actor {
     }
   }
 
-  _rolling: Vector = vec(0, 0);
+  _accum: Vector = vec(0, 0);
   onPreUpdate(engine: Engine, elapsed: number): void {
-    this._rolling = this.pos.sub(this.originalPos).scale(1 / (2 * Config.BallRadius * Math.PI));
-    this.billardsMat.uniforms.currentPos = this.pos;
-    this.billardsMat.uniforms.originalPos = this.originalPos;
+    let deltaX = this.pos.x - this.oldPos.x;
+    let deltaY = this.pos.y - this.oldPos.y;
+
+    // Accumulate rotation angles
+    if (Math.abs(deltaX) > .01) {
+      this._accum.x -= deltaX / Config.BallRadius; // Y movement rotates around X axis
+    }
+    if (Math.abs(deltaY) > .01) {
+      this._accum.y -= deltaY / Config.BallRadius; // X movement rotates around Y axis
+    }
+
+    this.billardsMat.uniforms.accumulatedRotation = this._accum;
     this.billardsMat.uniforms.rotation = this.rotation;
-    this.billardsMat.uniforms.roll = this._rolling;
 
     // friction
     if (this.vel.squareDistance() > .01) {
