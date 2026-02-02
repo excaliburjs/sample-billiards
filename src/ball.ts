@@ -34,14 +34,19 @@ export class Ball extends Actor {
       collisionType: CollisionType.Active
     });
     this.body.bounciness = Config.Bounciness;
-    this.body.limitDegreeOfFreedom.push(DegreeOfFreedom.Rotation);
+    // this.body.limitDegreeOfFreedom.push(DegreeOfFreedom.Rotation);
     this.graphics.color = ballColors[number - 1];
+    this.graphics.use(new Rectangle({
+      width: Config.BallRadius * 4,
+      height: Config.BallRadius * 4,
+      color: ballColors[number - 1]
+    }));
 
     this.originalPos = pos.clone();
 
     const font = new Font({
       family: 'sans-serif',
-      size: 16,
+      size: 12,
       bold: true,
       textAlign: TextAlign.Center,
       baseAlign: BaseAlign.Middle
@@ -54,26 +59,25 @@ export class Ball extends Actor {
         ctx.save();
         ctx.textAlign = font.textAlign;
         ctx.textBaseline = font.baseAlign;
-        ctx.font = '24px sans-serif';//font.fontString;
+        ctx.font = font.fontString;
         ctx.fillStyle = 'black';
-        // ctx.fillText("TEST", 0, 0);
-        ctx.fillRect(5, 5, 5, 5);
+        ctx.fillText(this.number.toString(), Config.BallRadius, Config.BallRadius + 1);
         ctx.restore();
       }
     });
-    canvas.flagDirty();
+    canvas.rasterize();
     this.textImage = ImageSource.fromHtmlCanvasElement(canvas._bitmap);
-
   }
 
-   onInitialize(engine: Engine): void {
+  onInitialize(engine: Engine): void {
+    const glsl = (x: any) => x[0]; // this is just for syntax highlighting
 
-    const glsl = (x: any) => x[0];
-    console.log(this.graphics.color);
     this.billardsMat = this.graphics.material = engine.graphicsContext.createMaterial({
       name: 'billiards',
       fragmentSource:
         glsl`#version 300 es
+
+        #define PI 3.141592653
         precision mediump float;
 
         uniform vec4 color;
@@ -82,41 +86,84 @@ export class Ball extends Actor {
         uniform sampler2D text;
         uniform vec2 roll;
         uniform float u_time_ms;
+        uniform float rotation;
 
         in vec2 v_uv;
 
         out vec4 fragColor;
 
+        mat3 rotateZ(float angle) {
+            float s = sin(angle);
+            float c = cos(angle);
+            return mat3(
+                c, -s, 0.,
+                s, c,  0.,
+                0., 0., 1.
+            );
+        }
+
+        vec2 sphereUV(vec2 uv, float radius, float rotation) {
+            // Center the coordinates
+            // vec2 p = uv - 0.5;
+            vec2 p = uv * 2.0 - 1.0;
+            // Calculate distance from center
+            float dist = length(p);
+            // Only warp inside the sphere
+            if (dist < radius) {
+                float z = sqrt(radius * radius - dist * dist);
+                vec3 spherePos = rotateZ(rotation) * vec3(p.x, p.y, z);
+                // Normalize to get the normal
+                vec3 normal = normalize(spherePos);
+                // Convert to spherical coordinates for UV mapping
+                // You can use these normals directly or convert to lat/long
+                vec2 sphereUV;
+                sphereUV.x = atan(normal.x, normal.z) / 3.14159 + .5;
+                sphereUV.y = asin(normal.y) / 3.14159 + .5;
+                return sphereUV;
+            }
+            return uv;
+        }
+
         void main(){
+          float fade = fwidth(dot(v_uv, v_uv));
+
           vec2 uv = v_uv;
-          vec2 scroll; 
-          scroll.x = uv.x - roll.x;
-          scroll.y = uv.y - roll.y;
+          uv = sphereUV(uv, .505, -rotation);
+          // uv = rotateZ(-rotation) * uv;
+
+          vec2 scroll;
+          vec2 rotatedRoll = roll;
+          scroll.x = uv.x - rotatedRoll.x;
+          scroll.y = uv.y - rotatedRoll.y;
 
           uv.x = mod(scroll.x, 1.);
           uv.y = mod(scroll.y, 1.);
 
           float dist = 1.0 - length(uv * 2.0 - 1.0);
-          float fade = fwidth(dot(v_uv, v_uv));
+          float adist = 1.0 - length(v_uv * 2.0 - 1.0);
+
 
           fragColor = color;
 
           // "Stripe" pattern for number 9 to 15
+          float stripeStart = 0.15 * 1.5;
+          float stripeEnd = 0.85 * 1.5;
           if (number > 8.) {
-            fragColor.rgb = mix(vec3(1.), fragColor.rgb, smoothstep(0.15 - fade / 2., 0.15 + fade / 2., uv.y));
-            fragColor.rgb = mix(fragColor.rgb, vec3(1.), smoothstep(0.85 - fade / 2., 0.85 + fade / 2., uv.y));
+            fragColor.rgb = mix(vec3(1.), fragColor.rgb, smoothstep(stripeStart - fade / 2., stripeStart + fade / 2., uv.y));
+            fragColor.rgb = mix(fragColor.rgb, vec3(1.), smoothstep(stripeEnd - fade / 2., stripeEnd + fade / 2., uv.y));
           }
 
           // Circle for Text
-          fragColor.rgb = mix(fragColor.rgb, vec3(1.), smoothstep(.45 - fade / 2., .45 + fade / 2., dist));
+          float circleEnd = .45 * 1.5;
+          fragColor.rgb = mix(fragColor.rgb, vec3(1.), smoothstep(circleEnd - fade / 2., circleEnd + fade / 2., dist));
 
           // Text
-          // vec4 textcolor = texture(text, uv);
-          // fragColor.rgb = textcolor.rgb;// mix(fragColor.rgb, textcolor.rgb, textcolor.a);
+          vec4 textcolor = texture(text, uv * 2.0 - .5);
+          fragColor.rgb = mix(fragColor.rgb, textcolor.rgb, textcolor.a);
 
           // Outer edge
-          fragColor.a = texture(u_graphic, v_uv).a;
-
+          float outerEdge = .50;
+          fragColor.a = smoothstep(outerEdge-fade, outerEdge+fade, adist);
 
           // premult alpha
           fragColor.rgb *= fragColor.a;
@@ -125,24 +172,22 @@ export class Ball extends Actor {
       uniforms: {
         color: this.graphics.color!,
         number: this.number,
-        roll: vec(0, 0)
+        roll: vec(0, 0),
+        rotation: this.rotation
       }
     });
 
-    // this.textImage.ready.then(() => {
-    //   // this.billardsMat.addImageSource('text', this.textImage);
-    //   document.body.appendChild(this.textImage.image);
-    //   this.billardsMat.update(shader => {
-    //     shader.addImageSource('text', this.textImage);
-    //   });
-    // });
-
+    this.textImage.ready.then(() => {
+      this.billardsMat.update(shader => {
+        shader.addImageSource('text', this.textImage);
+      });
+    });
   }
 
   _rolling: Vector = vec(0, 0);
   onPreUpdate(engine: Engine, elapsed: number): void {
     this._rolling = this.pos.sub(this.originalPos).scale(1 / (2 * Config.BallRadius));
+    this.billardsMat.uniforms.rotation = this.rotation;
     this.billardsMat.uniforms.roll = this._rolling;
-
   }
 }

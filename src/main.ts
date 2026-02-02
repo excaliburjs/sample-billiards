@@ -11,7 +11,7 @@ const game = new Engine({
   fixedUpdateFps: 60,
   physics: {
     bodies: {
-      canSleepByDefault: false,
+      canSleepByDefault: false
     },
     solver: SolverStrategy.Realistic,
     realistic: {

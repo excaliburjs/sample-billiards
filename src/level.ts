@@ -98,7 +98,7 @@ export class MyLevel extends Scene {
     this.input.pointers.on('down', (evt) => {
       this.add(cueBall);
       cueBall.pos = evt.worldPos;
-      cueBall.vel = vec(0, -800);
+      cueBall.vel = vec(0, -300);
     });
   }
 
