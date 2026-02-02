@@ -2,6 +2,9 @@ import { Actor, Circle, Text, CollisionType, Color, GraphicsGroup, Rectangle, ve
 import { Config } from "./config";
 
 const ballColors = [
+  // first is cue ball
+  "#FFFFFF",
+
   // solid
   "#FCD116",
   "#003DA5",
@@ -30,16 +33,16 @@ export class Ball extends Actor {
     super({
       pos,
       radius: Config.BallRadius,
-      color: ballColors[number - 1],
+      color: ballColors[number],
       collisionType: CollisionType.Active
     });
     this.body.bounciness = Config.Bounciness;
     // this.body.limitDegreeOfFreedom.push(DegreeOfFreedom.Rotation);
-    this.graphics.color = ballColors[number - 1];
+    this.graphics.color = ballColors[number];
     this.graphics.use(new Rectangle({
       width: Config.BallRadius * 4,
       height: Config.BallRadius * 4,
-      color: ballColors[number - 1]
+      color: ballColors[number]
     }));
 
     this.originalPos = pos.clone();
@@ -80,6 +83,8 @@ export class Ball extends Actor {
         #define PI 3.141592653
         precision mediump float;
 
+        uniform vec2 originalPos;
+        uniform vec2 currentPos;
         uniform vec4 color;
         uniform float number;
         uniform sampler2D u_graphic;
@@ -102,7 +107,6 @@ export class Ball extends Actor {
             );
         }
 
-
         mat2 rotate2d(float angle) {
             float s = sin(angle);
             float c = cos(angle);
@@ -112,12 +116,10 @@ export class Ball extends Actor {
             );
         }
 
-
-
         vec2 sphereUV(vec2 uv, float radius, float rotation) {
             // Center the coordinates
             vec2 p = uv - 0.5;
-            
+
             // Calculate distance from center
             float dist = length(p);
             
@@ -176,13 +178,15 @@ export class Ball extends Actor {
             fragColor.rgb = mix(fragColor.rgb, vec3(1.), smoothstep(stripeEnd   - fade / 2., stripeEnd   + fade / 2., uv.y));
           }
 
-          // Circle for Text
-          float circleEnd = .76;
-          fragColor.rgb = mix(fragColor.rgb, vec3(1.), smoothstep(circleEnd - fade / 2., circleEnd + fade / 2., dist));
+          if (number > 0.) {
+            // Circle for Text
+            float circleEnd = .76;
+            fragColor.rgb = mix(fragColor.rgb, vec3(1.), smoothstep(circleEnd - fade / 2., circleEnd + fade / 2., dist));
 
-          // Text
-          vec4 textcolor = texture(text, scaledUv);
-          fragColor.rgb = mix(fragColor.rgb, textcolor.rgb, textcolor.a);
+            // Text
+            vec4 textcolor = texture(text, scaledUv);
+            fragColor.rgb = mix(fragColor.rgb, textcolor.rgb, textcolor.a);
+          }
 
           // Outer edge - use sphere boundary
           fragColor.a = smoothstep(sphereRadius, sphereRadius - fade /2., sphereDist);
@@ -204,20 +208,26 @@ export class Ball extends Actor {
         color: this.graphics.color!,
         number: this.number,
         roll: vec(0, 0),
-        rotation: this.rotation
+        rotation: this.rotation,
+        currentPos: this.pos,
+        originalPos: this.originalPos
       }
     });
 
-    this.textImage.ready.then(() => {
-      this.billardsMat.update(shader => {
-        shader.addImageSource('text', this.textImage);
+    if (this.number > 0) {
+      this.textImage.ready.then(() => {
+        this.billardsMat.update(shader => {
+          shader.addImageSource('text', this.textImage);
+        });
       });
-    });
+    }
   }
 
   _rolling: Vector = vec(0, 0);
   onPreUpdate(engine: Engine, elapsed: number): void {
     this._rolling = this.pos.sub(this.originalPos).scale(1 / (2 * Config.BallRadius * Math.PI));
+    this.billardsMat.uniforms.currentPos = this.pos;
+    this.billardsMat.uniforms.originalPos = this.originalPos;
     this.billardsMat.uniforms.rotation = this.rotation;
     this.billardsMat.uniforms.roll = this._rolling;
 

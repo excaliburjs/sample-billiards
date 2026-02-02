@@ -88,17 +88,14 @@ export class MyLevel extends Scene {
       }
     }
 
-    const cueBall = new Actor({
-      radius: ballRadius,
-      color: Color.White,
-      collisionType: CollisionType.Active
-    });
+    const cueBall = new Ball(vec(0, 0), 0);
     cueBall.body.bounciness = bounciness;
 
     this.input.pointers.on('down', (evt) => {
       this.add(cueBall);
       cueBall.pos = evt.worldPos;
-      cueBall.vel = vec(0, -300);
+      cueBall.vel = vec(0, -800);
+      // cueBall.angularVelocity = 2 * Math.PI;
     });
   }
 
