@@ -1,4 +1,4 @@
-import { Actor, CollisionType, Color, DefaultLoader, Engine, ExcaliburGraphicsContext, Random, Scene, SceneActivationContext, vec } from "excalibur";
+import { Actor, CollisionType, Color, DefaultLoader, easeInOutCubic, Engine, ExcaliburGraphicsContext, Random, Scene, SceneActivationContext, vec } from "excalibur";
 import { Ball } from "./ball";
 import { Config } from "./config";
 import { Resources } from "./resources";
@@ -95,13 +95,17 @@ export class MyLevel extends Scene {
       }
     }
 
-    const cueBall = new Ball(vec(0, 0), 0);
+    const cueBall = new Ball(tableOrigin.add(vec(tableWidth/2, 800)), 0);
     cueBall.body.bounciness = bounciness;
+    this.add(cueBall);
+    this.camera.strategy.elasticToActor(cueBall, .6, .7);
 
-    this.input.pointers.on('down', (evt) => {
+    this.input.pointers.on('down', async (evt) => {
       this.add(cueBall);
       cueBall.pos = evt.worldPos;
       cueBall.vel = vec(0, -1800);
+      await this.camera.zoomOverTime(1.5, 2000, easeInOutCubic);
+      await this.camera.zoomOverTime(1, 1000, easeInOutCubic);
     });
   }
 

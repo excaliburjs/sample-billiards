@@ -43,7 +43,7 @@ export class Ball extends Actor {
 
     const font = new Font({
       family: 'sans-serif',
-      size: 32,
+      size: 26,
       bold: true,
       textAlign: TextAlign.Center,
       baseAlign: BaseAlign.Middle
@@ -112,15 +112,15 @@ export class Ball extends Actor {
 
 
         // Convert 2D circle UV to 3D sphere normal
-        vec3 uvToSphereNormal(vec2 uv) {
+        vec3 uvToSphereNormal(vec2 uv, out float alpha) {
             // Convert UV to -1 to 1 range centered at origin
             vec2 pos = (uv - 0.5) * 2.0;
+            float dist = length(pos);
 
-            // Calculate z depth for sphere
-            float r2 = dot(pos, pos);
-            if (r2 > 1.0) discard; // Outside the circle
+            float edgeWidth = fwidth(dist) * 2.0;
+            alpha = 1.0 - smoothstep(1.0 - edgeWidth, 1.0, dist);
 
-            float z = sqrt(1.0 - r2);
+            float z = sqrt(max(0.0, 1.0 - dist * dist));
             return normalize(vec3(pos.x, pos.y, z));
         }
 
@@ -141,15 +141,16 @@ export class Ball extends Actor {
         }
 
         void main(){
-          vec3 worldNormal = uvToSphereNormal(v_uv);
+          float alpha;
+          vec3 worldNormal = uvToSphereNormal(v_uv, alpha);
           worldNormal = rotateAroundAxis(worldNormal, vec3(0.0, 0.0, 1.0), -rotation);
 
           vec3 lightDir = normalize(vec3(0.5, 0.5, 1.0));
-          float lighting = max(dot(worldNormal, lightDir), 0.3);
+          float lighting = max(dot(worldNormal, lightDir), 0.5);
 
           float fade = fwidth(dot(v_uv, v_uv));
 
-          vec3 textureNormal = uvToSphereNormal(v_uv);
+          vec3 textureNormal = uvToSphereNormal(v_uv, alpha);
 
           // Apply accumulated rolling rotations
           textureNormal = rotateAroundAxis(textureNormal, vec3(0.0, 1.0, 0.0), -accumulatedRotation.y);
@@ -170,6 +171,7 @@ export class Ball extends Actor {
             fragColor.rgb = mix(fragColor.rgb, textcolor.rgb, textcolor.a);
           }
           fragColor.rgb *= lighting;
+          fragColor.a = alpha;
 
           // premult
           fragColor.rgb *= fragColor.a;
